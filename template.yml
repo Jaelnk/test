@@ -736,12 +736,13 @@ Resources:
   LoadBalancerListenerAdmin:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      DefaultActions:
+      DefaultActions:      #version  Insecure encryption algorithm - SSL/TLS
         - TargetGroupArn: !Ref TargetGroupAdmin
           Type: forward
       LoadBalancerArn: !Ref LoadBalancer
       Port: !Ref ENVAdminPort
       Protocol: TCP
+      SslPolicy: ELBSecurityPolicy-2016-08
 
   LoadBalancerListenerOperative:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -752,7 +753,8 @@ Resources:
       LoadBalancerArn: !Ref LoadBalancer
       Port: !Ref ENVOperativePort
       Protocol: TCP
-
+      SslPolicy: ELBSecurityPolicy-2016-08
+      
   LoadBalancer:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
