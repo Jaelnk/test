@@ -1,0 +1,819 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: Creates task definition and ecs cluster service.
+Parameters:
+  AwsAccountIdToDeploy:
+    Type: String
+    Description: "Identificador de la cuentas AWS"
+  EnvironmentId:
+    Type: String
+  CWCSecurityGroupId:
+    Type: String
+  VpcIdParam:
+    Type: String
+  IPAddressRange:
+    Type: String
+    Description: "Rango de direcciones IP"
+  SubnetsIdsParam:
+    Type: CommaDelimitedList
+    Description: "Identificador de las subnets donde se desplegará el API de desarrollo (Deben estar entre comillas dobles y separadas por comas)."
+  dockerTag:
+    Type: String
+  ContainerAtmImageParam:
+    Type: String
+  ContainerTcpImageParam:
+    Type: String
+  UrlApigatewayAuthenticationParam:
+    Type: String
+  UrlApiKeyAuthenticationParam:
+    Type: String
+  SecretNameCredentialsBBDD:
+    Type: String
+  SecretNameLogin:
+    Type: String
+  mainDomain:
+    Type: String
+  encryptionKey:
+    Type: String
+  ContainerLogRegionParam:
+    Type: String
+  logLevel:
+    Type: String
+  ContainerCPU:
+    Type: String
+  ContainerMemory:
+    Type: String
+  EscCluster:
+    Type: String
+  ENVinQueue:
+    Type: String
+  ENVoutMsgQueue:
+    Type: String
+  ENVoutQueue:
+    Type: String
+  ENVoutStatusQueue:
+    Type: String
+  ENVtimeout:
+    Type: String
+  ENVAdminPort:
+    Type: Number
+  ENVOperativePort:
+    Type: Number
+  Organization:
+    Type: String
+    Description: "Identificador del dueño componente."
+  Package:
+    Type: String
+    Description: "Identificador del paquete de productos comerciales al que se asocia el componente."
+  Version:
+    Type: String
+    Default: "0.1"
+    Description: "Versión del módulo o aplicación a la que pertenece el componente."
+  EnvironmentType:
+    Type: String
+    AllowedValues: [Production, Staging, Quality, Development, Integration, Formation, Migration, Preproduction]
+    ConstraintDescription: must specify PRODUCTION, STAGING, QUALITY or DEVELOPMENT.
+  TenantId:
+    Type: String
+    Description: "Identificador del tenant."
+  Project:
+    Type: String
+    Description: "Identificador del proyecto por el que se crea el componente."
+  Module:
+    Type: String
+    Description: "Identificador del módulo."
+  ProcessingType:
+    Type: String
+    Description: "Tipo de procesamiento."
+  
+  TcpHandlerMemory:
+    Description: TCP handler memory
+    Type: Number
+  TcpHandlerCPU:
+    Description: TCP handler CPU
+    Type: Number
+  TcpHandlerHealthCheckIntervalSeconds:
+    Description: Health check interval in seconds
+    Type: Number
+  TcpHandlerUnhealthyThresholdCount:
+    Description: Unhealthy threshold count
+    Type: Number
+
+
+Resources:
+  taskdefinitionCISService:
+    Type: 'AWS::ECS::TaskDefinition'
+    DependsOn:
+      - ContainerLogGroupCISService
+    Properties:
+      Family: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - '-atm-cis-task'
+      ExecutionRoleArn: !Ref TaskExecutionRole
+      TaskRoleArn: !Ref TaskExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: !Ref ContainerCPU
+      Memory: !Ref ContainerMemory
+      ContainerDefinitions:
+        - Name: !Join
+            - ''
+            - - !Ref EnvironmentId
+              - '-atm-cis-container'
+          Image: !Sub ${ContainerAtmImageParam}:${dockerTag}
+          Cpu: !Ref ContainerCPU
+          Memory: !Ref ContainerMemory
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Join
+                - ''
+                - - /aws/ecs/
+                  - !Ref EnvironmentId
+                  - '-atm-cis'
+              awslogs-region: !Ref ContainerLogRegionParam
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: TZ
+              Value: America/Bogota
+            - Name: ENDPOINT_URL_AUTHENTICATION
+              Value: !Ref UrlApigatewayAuthenticationParam
+            - Name: APIKEY_URL_AUTHENTICATION
+              Value: !Ref UrlApiKeyAuthenticationParam
+            - Name: SECRET_NAME
+              Value: !Ref SecretNameCredentialsBBDD
+            - Name: SECRET_LOGIN
+              Value: !Ref SecretNameLogin
+            - Name: REGION
+              Value: !Ref ContainerLogRegionParam
+            - Name: MAIN_DOMAIN
+              Value: !Ref mainDomain
+            - Name: ENCRYPTION_KEY
+              Value: !Ref encryptionKey
+            - Name: LOG_LEVEL
+              Value: !Ref logLevel
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+          Essential: true
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  AtmServiceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${EnvironmentId}-atm-gp-service'
+      GroupDescription: !Sub 'Grupo de seguridad de ${EnvironmentId}-atm-cis-service'
+      VpcId: !Ref VpcIdParam
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref IPAddressRange
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: !Ref IPAddressRange
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  ECSCISService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      ServiceName: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - '-atm-cis-service'
+      Cluster: !Ref EscCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref taskdefinitionCISService
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref AtmServiceSecurityGroup
+          Subnets: !Ref SubnetsIdsParam
+          AssignPublicIp: ENABLED
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  ContainerLogGroupCISService:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Join
+        - ''
+        - - /aws/ecs/
+          - !Ref EnvironmentId
+          - '-atm-cis'
+      RetentionInDays: 7
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  TaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join 
+        - ''
+        - - !Ref EnvironmentId
+          - '-atm-cis-execution-role'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonCognitoPowerUser'
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AWSLambda_FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/SecretsManagerReadWrite'
+        - 'arn:aws:iam::aws:policy/AmazonRDSDataFullAccess'
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  SqsTcphandler:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      QueueName: !Ref ENVoutQueue
+      VisibilityTimeout: 0
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  SqsTcphandlerISO:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      QueueName: !Ref ENVinQueue
+      VisibilityTimeout: 0
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  SqsAlterStatus:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      QueueName: !Ref ENVoutStatusQueue
+      VisibilityTimeout: 0
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  SqsProviderAlert:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      QueueName: !Ref ENVoutMsgQueue
+      VisibilityTimeout: 0
+      ReceiveMessageWaitTimeSeconds: 0
+      DelaySeconds: 0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+#########################################################################
+####### Implementación del despliegue del tcpHandler
+#########################################################################
+  taskdefinitionTcpHandler:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - ContainerLogGroupTcpHandler
+      - SqsTcphandler
+      - SqsTcphandlerISO
+      - SqsAlterStatus
+      - SqsProviderAlert
+    Properties:
+      Family: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - '-tcphandler-task'
+      ExecutionRoleArn: !Ref TaskExecutionRole
+      TaskRoleArn: !Ref TaskExecutionRole
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: !Ref TcpHandlerCPU
+      Memory: !Ref TcpHandlerMemory
+      ContainerDefinitions:
+        - Name: !Join
+            - ''
+            - - !Ref EnvironmentId
+              - '-tcphandler-container'
+          Image: !Ref ContainerTcpImageParam
+          Cpu: !Ref TcpHandlerCPU
+          Memory: !Ref TcpHandlerMemory
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Join
+                - ''
+                - - /aws/ecs/
+                  - !Ref EnvironmentId
+                  - "-tcphandler"
+              awslogs-region: !Ref ContainerLogRegionParam
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: TZ
+              Value: America/Bogota
+            - Name: ENVinQueue
+              Value: !Ref ENVinQueue
+            - Name: ENVoutMsgQueue
+              Value: !Ref ENVoutMsgQueue
+            - Name: ENVoutQueue
+              Value: !Ref ENVoutQueue
+            - Name: ENVoutStatusQueue
+              Value: !Ref ENVoutStatusQueue
+            - Name: ENVprovider
+              Value: !Join ['',["connector=ISO8583;provider=9;filter=(service.impl=TCPExecutorImpl);queueProvider=",!Ref ENVinQueue,";data="]]
+            - Name: ENVtimeout
+              Value: !Ref ENVtimeout
+            - Name: ENVAdminPort
+              Value: !Ref ENVAdminPort
+            - Name: ENVOperativePort
+              Value: !Ref ENVOperativePort
+          PortMappings:
+            - ContainerPort: !Ref ENVAdminPort
+              HostPort: !Ref ENVAdminPort
+            - ContainerPort: !Ref ENVOperativePort
+              HostPort: !Ref ENVOperativePort
+          Essential: true
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  TCPHandlerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${EnvironmentId}-tcphandler-gp'
+      GroupDescription: Grupo de seguridad TCPHandler
+      VpcId: !Ref VpcIdParam
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref ENVOperativePort
+          ToPort: !Ref ENVOperativePort
+          CidrIp: !Ref IPAddressRange
+        - IpProtocol: tcp
+          FromPort: !Ref ENVAdminPort
+          ToPort: !Ref ENVAdminPort
+          CidrIp: !Ref IPAddressRange
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  CWCSecurityGroupEgress:
+    Type: "AWS::EC2::SecurityGroupEgress"
+    Properties:
+      GroupId: !Ref CWCSecurityGroupId
+      IpProtocol: "tcp"
+      FromPort: !Ref ENVOperativePort
+      ToPort: !Ref ENVOperativePort
+      CidrIp: "0.0.0.0/0"
+
+  ECSServiceTcphandler:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - LoadBalancerListenerAdmin
+      - LoadBalancerListenerOperative
+    Properties:
+      ServiceName: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - "-tcphandler-service"
+      Cluster: !Ref EscCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref taskdefinitionTcpHandler
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref TCPHandlerSecurityGroup
+          Subnets: !Ref SubnetsIdsParam
+          AssignPublicIp: ENABLED
+      LoadBalancers:
+        - TargetGroupArn: !Ref TargetGroupAdmin
+          ContainerName: !Join
+            - ''
+            - - !Ref EnvironmentId
+              - "-tcphandler-container"
+          ContainerPort: !Ref ENVAdminPort
+        - TargetGroupArn: !Ref TargetGroupOperative
+          ContainerName: !Join
+            - ''
+            - - !Ref EnvironmentId
+              - "-tcphandler-container"
+          ContainerPort: !Ref ENVOperativePort
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+      
+
+  ContainerLogGroupTcpHandler:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join
+        - ''
+        - - /aws/ecs/
+          - !Ref EnvironmentId
+          - "-tcphandler"
+      RetentionInDays: 7
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  TargetGroupAdmin:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - "-tg-tcphandler-admin"
+      Port: !Ref ENVAdminPort
+      Protocol: TCP
+      VpcId: !Ref VpcIdParam
+      TargetType: ip
+      HealthCheckProtocol: TCP
+      HealthCheckPort: !Ref ENVAdminPort
+      HealthCheckIntervalSeconds: !Ref TcpHandlerHealthCheckIntervalSeconds
+      HealthCheckTimeoutSeconds: 10
+      UnhealthyThresholdCount: !Ref TcpHandlerUnhealthyThresholdCount
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  TargetGroupOperative:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - "-tg-tcphandler-operative"
+      Port: !Ref ENVOperativePort
+      Protocol: TCP
+      VpcId: !Ref VpcIdParam
+      TargetType: ip
+      HealthCheckProtocol: TCP
+      HealthCheckPort: !Ref ENVOperativePort
+      HealthCheckIntervalSeconds: !Ref TcpHandlerHealthCheckIntervalSeconds
+      HealthCheckTimeoutSeconds: 10
+      UnhealthyThresholdCount: !Ref TcpHandlerUnhealthyThresholdCount
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: '30'
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+
+  LoadBalancerListenerAdmin:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroupAdmin
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !Ref ENVAdminPort
+      Protocol: TCP
+
+  LoadBalancerListenerOperative:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroupOperative
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !Ref ENVOperativePort
+      Protocol: TCP
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - "-network-tcphandler"
+      Scheme: internal
+      Subnets: !Ref SubnetsIdsParam
+      Type: network
+      LoadBalancerAttributes:
+        - Key: "deletion_protection.enabled"
+          Value: true
+        - Key: "access_logs.s3.enabled"
+          Value: true
+        - Key: "access_logs.s3.bucket"
+          Value: !Sub "${EnvironmentId}-baseplatform-loadbalancerslogs-${AwsAccountIdToDeploy}"
+        - Key: access_logs.s3.prefix
+          Value: !Sub "${EnvironmentId}-network-tcphandler-load-balancer"
+      Tags:
+        - Key: "ORGANIZATION"
+          Value: !Ref Organization
+        - Key: "PACKAGE"
+          Value: !Ref Package
+        - Key: "VERSION"
+          Value: !Ref Version
+        - Key: "ENVIRONMENT_TYPE"
+          Value: !Ref EnvironmentType
+        - Key: "ENVIRONMENT_ID"
+          Value: !Ref EnvironmentId
+        - Key: "TENANT_ID"
+          Value: !Ref TenantId
+        - Key: "PROJECT"
+          Value: !Ref Project
+        - Key: "MODULE"
+          Value: !Ref Module
+        - Key: "PROCESSING_TYPE"
+          Value: !Ref ProcessingType
+    
+
+  AtmServiceDashboard:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: online-compute-dashboard.yaml
+      Parameters:
+        EnvironmentId: !Ref EnvironmentId
+        MODULE: !Ref Module
+        AwsAccountIdToDeploy: !Ref AwsAccountIdToDeploy
+        EscCluster: !Ref EscCluster
+        RegionToDeploy: !Ref AWS::Region
+        TargetGroupArn: !Select [5, !Split [":",!Ref TargetGroupAdmin]]
+        LoadBalancerArn: !Select [1, !Split ["loadbalancer/",!Ref LoadBalancer]]
+      Tags:
+        ORGANIZATION: !Ref Organization
+        PACKAGE: !Ref Package
+        VERSION: !Ref Version
+        ENVIRONMENT_TYPE: !Ref EnvironmentType
+        ENVIRONMENT_ID: !Ref EnvironmentId
+        TENANT_ID: !Ref TenantId
+        PROJECT: !Ref Project
+        MODULE: !Ref Module
+        PROCESSING_TYPE: !Ref ProcessingType
+
+Outputs: {}
