@@ -424,7 +424,7 @@ Resources:
             Location: ../specs/channels/v1/COBISChannelsAPI-resolved.yaml
       MethodSettings:
         - ResourcePath: "/*"
-          HttpMethod: "*"       
+          HttpMethod: GET, POST      #metodo http inseguro   HttpMethod: "*" 
           MetricsEnabled: "true"
           DataTraceEnabled: "false"
           LoggingLevel: INFO
