@@ -1,0 +1,503 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ach-service
+  SAM Template for cobis-ach-service Load Config
+Parameters:
+  ApplicationId:
+    Type: String
+    Description: "ID de la aplicación"
+  ConfigurationProfileName:
+    Type: String
+    Description: "ID de la configuración del perfil"
+  EnvironmentId:
+    Type: String
+    Description: "Identificador del ambiente"
+Resources:
+  DependentConfigurationProfile:
+    Type: AWS::AppConfig::ConfigurationProfile
+    Properties:
+      ApplicationId: !Ref ApplicationId
+      Name: !Ref ConfigurationProfileName
+      LocationUri: "hosted"
+  HostedConfigurationVersion:
+    Type: AWS::AppConfig::HostedConfigurationVersion
+    Properties: 
+      ApplicationId: !Ref ApplicationId
+      ConfigurationProfileId: !Ref DependentConfigurationProfile
+      Description: 'Configuración de versión local'  #vulnerabilidad 319 a 335
+      Content: '  
+{
+  "parameters": {
+    "environmentId": "qa1",
+    "environmentIdBase": "qa1",
+    "environmentType": "QUALITY",
+    "region": "us-east-1",
+    "environmentIdBaseFront": "qa1",
+    "awsAccountId": "110595436954",
+    "generalPurposeSecurityGroupsIds": "sg-0b5f2a3cf1ae67f67",
+    "logRetentionDays": 7
+  },
+  "stack-outputs": [
+    "${BASE_ENVIRONMENT_ID}-BasePlatform"
+  ],
+  "pipeline": {
+    "project": {
+      "project-key": "cobis-ach-service",
+      "teams-webhook-url": "https://outlook.office.com/webhook/4f4e50c5-b2ab-4396-8ab8-e4af1d9434aa@a5e6fcaa-5535-41e3-8d08-2b6676750a3f/JenkinsCI/c8edcdeeccf347b6b4aad622de2a1a53/b8972d64-dcef-486c-8c42-6927a6b04e0b",
+      "backend-repo-url": "https://dev.azure.com/cobiscorp/COB/_git/cobis-ach-backend-aws",
+      "backend-branch": "master",
+      "custom-parameters": "null",
+      "custom-deploy-enable": "true"
+    },
+    "liquibase": {
+      "liquibase-s3-bucket": "${environmentIdBase}-cobis-cicd-core-resources-virginia-${awsAccountId}",
+      "liquibase-batch-job-queue": "${environmentIdBase}-cobis-gp-fg-environment-queue",
+      "liquibase-batch-job-definition": "${environmentIdBase}-liquibase-executor-fg-job-definition",
+      "liquibase-db-names": "cob_channels,cobis,cob_ach,cob_ach_his",
+      "liquibase-db-log-sufijo": "ACH",
+      "liquibase-deploy-enable": "true"
+    },
+    "docker": {
+      "name": "cobis/ach/service",
+      "description": "ContenedordeACH",
+      "license": "Proprietary",
+      "reference": "",
+      "vendor": "COBIS",
+      "author": {
+        "name": "DiegoGordon",
+        "email": "diego.gordon@cobiscorp.com"
+      },
+      "homepage": "http://www.cobiscorp.com",
+      "docker_cmd": ""
+    },
+    "deploy": {
+      "sam-deploy-enable": "true",
+      "stack-name": "${environmentId}-ach-service-stack",
+      "s3-bucket": "${environmentId}-cobis-cicd-core-resources-virginia-${awsAccountId}",
+      "prefix": "${environmentId}",
+      "aws-default-region": "${region}",
+      "capabilities": "CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM",
+      "non-confirm-change-set": "true",
+      "parameters": [
+        {
+          "ParameterKey": "LogRetentionDays",
+          "ParameterValue": "${logRetentionDays}"
+        },
+        {
+          "ParameterKey": "AwsAccountId",
+          "ParameterValue": "${awsAccountId}"
+        },
+        {
+          "ParameterKey": "EnvironmentIdBase",
+          "ParameterValue": "${environmentIdBase}"
+        },
+        {
+          "ParameterKey": "GeneralPurposeSecurityGroupsIds",
+          "ParameterValue": "${generalPurposeSecurityGroupsIds}"
+        },
+        {
+          "ParameterKey": "AwsRegion",
+          "ParameterValue": "${region}"
+        },
+        {
+          "ParameterKey": "EnvironmentType",
+          "ParameterValue": "${environmentType}"
+        },
+        {
+          "ParameterKey": "EnvironmentId",
+          "ParameterValue": "${environmentId}"
+        },
+        {
+          "ParameterKey": "microServiceName",
+          "ParameterValue": "ach-service"
+        },
+        {
+          "ParameterKey": "MODULE",
+          "ParameterValue": "ach"
+        },
+        {
+          "ParameterKey": "dockerTag",
+          "ParameterValue": "${CONTAINER_VERSION}"
+        },
+        {
+          "ParameterKey": "dockerEcrRepositoryUrl",
+          "ParameterValue": "SET_DOCKERECRREPOSITORYURL"
+        },
+        {
+          "ParameterKey": "clusterECSId",
+          "ParameterValue": "arn:aws:ecs:us-east-1:110595436954:cluster/qa1-cobis-gp-ecs-cluster"
+        },
+        {
+          "ParameterKey": "microServicePort",
+          "ParameterValue": "8079"
+        },
+        {
+          "ParameterKey": "ENVIRONMENTPREFIX",
+          "ParameterValue": "qa1"
+        },
+        {
+          "ParameterKey": "publicLoadBalancer",
+          "ParameterValue": "arn:aws:elasticloadbalancing:us-east-1:110595436954:loadbalancer/app/qa1-gp-private-load-balancer/1af95f8a77a37a97"
+        },
+        {
+          "ParameterKey": "healthCheckUrl",
+          "ParameterValue": "/cobis/ach/actuator/health/"
+        },
+        {
+          "ParameterKey": "profile",
+          "ParameterValue": "cloudqa1"
+        },
+        {
+          "ParameterKey": "microserviceSecretArn",
+          "ParameterValue": "arn:aws:secretsmanager:us-east-1:110595436954:secret:/tmp/ACHSrv/database/credentials-QqwTmD"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG0NAME",
+          "ParameterValue": "ach"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG0URL",
+          "ParameterValue": "SET_COBISRESTRPCCONNECTIONCONFIG0URL"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG0PATH",
+          "ParameterValue": "/v1/ach/executor"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG0TIMEOUT",
+          "ParameterValue": "15000"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG0APIKEY",
+          "ParameterValue": "qa1-qa1-qwertyuioplkjachyla7"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG1NAME",
+          "ParameterValue": "accounts"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG1URL",
+          "ParameterValue": "SET_COBISRESTRPCCONNECTIONCONFIG1URL"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG1PATH",
+          "ParameterValue": "/v1/demand-deposits/executor"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG1TIMEOUT",
+          "ParameterValue": "15000"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG1APIKEY",
+          "ParameterValue": "qa1-qwertyuioplkjhgfdsastg"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG2NAME",
+          "ParameterValue": "customers"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG2URL",
+          "ParameterValue": "SET_COBISRESTRPCCONNECTIONCONFIG2URL"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG2PATH",
+          "ParameterValue": "/v1/customers/executor"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG2TIMEOUT",
+          "ParameterValue": "15000"
+        },
+        {
+          "ParameterKey": "COBISRESTRPCCONNECTIONCONFIG2APIKEY",
+          "ParameterValue": "qa1-qwertyuioplkjhgfdsa2quality"
+        },
+        {
+          "ParameterKey": "AWSPOOLID",
+          "ParameterValue": "us-east-1_ExoMwaJLx"
+        },
+        {
+          "ParameterKey": "AWSPOOLIDAPP",
+          "ParameterValue": "us-east-1_reB72y19B"
+        },
+        {
+          "ParameterKey": "SECRETMANAGERUSERNAME",
+          "ParameterValue": "/tmp/ACHSrv/database/credentials"
+        },
+        {
+          "ParameterKey": "taskDefinitionMemory",
+          "ParameterValue": "1024"
+        },
+        {
+          "ParameterKey": "taskDefinitionCpu",
+          "ParameterValue": "512"
+        },
+        {
+          "ParameterKey": "publicNlbLoadBalancer",
+          "ParameterValue": "arn:aws:elasticloadbalancing:us-east-1:110595436954:loadbalancer/net/qa1-gp-network-load-balancer/0d7c2c3cc371425b"
+        },
+        {
+          "ParameterKey": "Package",
+          "ParameterValue": "COBIS_CORE_BANKING"
+        },
+        {
+          "ParameterKey": "Project",
+          "ParameterValue": "CoreServerless"
+        },
+        {
+          "ParameterKey": "tenantId",
+          "ParameterValue": "t1"
+        },
+        {
+          "ParameterKey": "version",
+          "ParameterValue": "0.1"
+        },
+        {
+          "ParameterKey": "LogLevel",
+          "ParameterValue": "TRACE"
+        },
+        {
+          "ParameterKey": "AWSBatchServiceRole",
+          "ParameterValue": "arn:aws:iam::${awsAccountId}:role/${environmentIdBase}-batch-compute-service-role"
+        },
+        {
+          "ParameterKey": "AuthenticationSecretArn",
+          "ParameterValue": "arn:aws:secretsmanager:us-east-1:110595436954:secret:/tmp/ACH/authentication/credentials-eUwje2"
+        },
+        {
+          "ParameterKey": "BatchImportDataBase",
+          "ParameterValue": "cob_ach"
+        },
+        {
+          "ParameterKey": "BatchImportTable",
+          "ParameterValue": "ch_batch_detail_tmp"
+        },
+        {
+          "ParameterKey": "GlueImportDataBase",
+          "ParameterValue": "${environmentId}-ach"
+        },
+        {
+          "ParameterKey": "GlueImportTable",
+          "ParameterValue": "ach_table"
+        },
+        {
+          "ParameterKey": "LoggingBucket",
+          "ParameterValue": "${environmentIdBase}-baseplatform-serveraccesslogs-${awsAccountId}"
+        },
+        {
+          "ParameterKey": "TransferFamilyUserOut",
+          "ParameterValue": "user-ach-out"
+        },
+        {
+          "ParameterKey": "TransferFamilyUserIn",
+          "ParameterValue": "user-ach-in"
+        },
+        {
+          "ParameterKey": "TransferFamilyServerId",
+          "ParameterValue": "s-a4390e8ef4a148eeb"
+        },
+        {
+          "ParameterKey": "AuthenticationPathLogin",
+          "ParameterValue": "/users/v1/auth/authentication"
+        },
+        {
+          "ParameterKey": "AuthenticationPathRole",
+          "ParameterValue": "/users/v1/auth/authentication/role-selection"
+        },
+        {
+          "ParameterKey": "integrationAdminCatalogsBaseUrl",
+          "ParameterValue": "SET_INTEGRATIONADMINCATALOGSBASEURL"
+        },
+        {
+          "ParameterKey": "integrationAdminCatalogsPath",
+          "ParameterValue": "/v1"
+        },
+        {
+          "ParameterKey": "integrationAdminCatalogsTimeout",
+          "ParameterValue": "60000"
+        },
+        {   
+          "ParameterKey": "IntegrationDdaBaseUrl",
+          "ParameterValue": "SET_INTEGRATIONDDABASEURL"
+        },
+        {
+          "ParameterKey": "IntegrationDdaTrnBaseUrl",
+          "ParameterValue": "SET_INTEGRATIONDDATRNBASEURL"
+        },
+        {
+          "ParameterKey": "IntegrationDdaApikey",
+          "ParameterValue": "qa1-qwertyuioplkjhgfdsastg"
+        },
+        {
+          "ParameterKey": "IntegrationDdaTrnApikey",
+          "ParameterValue": "qa1-qwertyuioplkjhgfdsastg"
+        },
+        {
+          "ParameterKey": "IntegrationBaseLoanURL",
+          "ParameterValue": "SET_INTEGRATIONBASELOANURL"
+        },
+        {
+          "ParameterKey": "IntegrationBasePaymentLoanURL",
+          "ParameterValue": "SET_INTEGRATIONBASEPAYMENTLOANURL"
+        },
+        {
+          "ParameterKey": "IntegrationBaseTransactionalLoanURL",
+          "ParameterValue": "SET_INTEGRATIONBASETRANSACTIONALLOANURL"
+        },
+        {
+          "ParameterKey": "IntegrationLoanApikey",
+          "ParameterValue": "IazCw40Rgr3sZ9M8VdJDM9Fxvy5swFh31BuCfbTH"
+        },
+        {
+          "ParameterKey": "IntegrationLoanPaymentsApikey",
+          "ParameterValue": "IazCw40Rgr3sZ9M8VdJDM9Fxvy5swFh31BuCfbTH"
+        },
+        {
+          "ParameterKey": "IntegrationLoanTransactionalApikey",
+          "ParameterValue": "IazCw40Rgr3sZ9M8VdJDM9Fxvy5swFh31BuCfbTH"
+        },
+        {
+          "ParameterKey": "IntegrationTDepositsBaseURL",
+          "ParameterValue": "SET_INTEGRATIONTDEPOSITSBASEURL"
+        },
+        {
+          "ParameterKey": "IntegrationTDepositsApikey",
+          "ParameterValue": "qa1-tdecrtyuioplkjhgfdsi"
+        },
+        {
+          "ParameterKey": "subnetIDs",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:GeneralPurposeBackendSubnetIds}"
+        },
+        {
+          "ParameterKey": "clusterECSName",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:BatchECSClusterName}"
+        },
+        {
+          "ParameterKey": "vpcId",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:VPCId}"
+        },
+        {
+          "ParameterKey": "timezone",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:TimeZone}"
+        },
+        {
+          "ParameterKey": "securityGroupsXsellIDs",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:XSellBackendSecurityGroupId}"
+        },
+        {
+          "ParameterKey": "Organization",
+          "ParameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:Organization}"
+        },
+        {
+          "ParameterKey": "AchSqlTimeout",
+          "ParameterValue": "10000"
+        },
+        {
+          "ParameterKey": "taskDefinitionMemoryNlb",
+          "ParameterValue": "1024"
+        },
+        {
+          "ParameterKey": "taskDefinitionCpuNlb",
+          "ParameterValue": "512"
+        },
+        {
+          "ParameterKey": "BatchMemory",
+          "ParameterValue": "2048"
+        },
+        {
+          "ParameterKey": "BatchVcpu",
+          "ParameterValue": "1"
+        },
+        {
+          "ParameterKey": "LoadBalancerUrl",
+          "ParameterValue": "http://internal-qa1-gp-private-load-balancer-2008585544.us-east-1.elb.amazonaws.com"
+        },
+        {
+          "ParameterKey": "FileProcessingServicePath",
+          "ParameterValue": "cobis/ach/custom/batch/ach/iso/pacs"
+        },
+        {
+          "ParameterKey": "HealthCheckIntervalSeconds",
+          "ParameterValue": "30"
+        },
+        {
+          "ParameterKey": "UnhealthyThresholdCount",
+          "ParameterValue": "10"
+        },
+        {
+          "ParameterKey": "ServiceScalingMaxCapacity",
+          "ParameterValue": "1"
+        },
+        {
+          "ParameterKey": "ServiceScalingMinCapacity",
+          "ParameterValue": "1"
+        },
+        {
+          "ParameterKey": "SecurityGroupsXsellCidrIp",
+          "ParameterValue": "10.128.0.0/16"
+        },
+        {
+          "ParameterKey": "CWCSecurityGroupId",
+          "ParameterValue": "sg-090b91cdfe7521c78"
+        },
+        {
+          "ParameterKey": "BatchProcessingPath",
+          "ParameterValue": "/cobis/ach/custom/batch/processing/file"
+        },
+        {
+          "ParameterKey": "LambdaProcessingLogLevel",
+          "ParameterValue": "INFO"
+        },
+        {
+          "ParameterKey": "IntegrationDdaReadTimeout",
+          "ParameterValue": "20000"
+        },
+        {
+          "ParameterKey": "IntegrationDdaConnectTimeout",
+          "ParameterValue": "20000"
+        },
+        {
+          "ParameterKey": "IntegrationLoanReadTimeout",
+          "ParameterValue": "30000"
+        },
+        {
+          "ParameterKey": "IntegrationLoanConnectTimeout",
+          "ParameterValue": "30000"
+        }
+      ]
+    },
+    "disaster-recovery": {
+      "actived-on-primary": {
+        "deploy": {
+          "parameters": [
+            {
+              "parameterKey": "subnetIDs",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:GeneralPurposeBackendSubnetIds}"
+            },
+            {
+              "parameterKey": "clusterECSName",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:BatchECSClusterName}"
+            },
+            {
+              "parameterKey": "vpcId",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:VPCId}"
+            },
+            {
+              "parameterKey": "timezone",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:TimeZone}"
+            },
+            {
+              "parameterKey": "securityGroupsXsellIDs",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:XSellBackendSecurityGroupId}"
+            },
+            {
+              "parameterKey": "Organization",
+              "parameterValue": "${${BASE_ENVIRONMENT_ID}-BasePlatform:Organization}"
+            }
+          ]
+        }
+      }
+    }
+  }
+}'
+      ContentType: 'JSON'
