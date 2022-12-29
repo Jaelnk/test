@@ -1,0 +1,644 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  channels-commons-service
+
+  SAM Template for channels-commons-service lambda
+
+Parameters:
+  ChannelsCommonsAutoScalingRole:
+    Type: String
+    Description: "ChannelsCommonsAutoScalingRole."
+  TimeZone:
+    Type: String
+    Description: "Identificador de zona horaria."
+  LambdaAliasProduction:
+    Type: String
+    Description: Environment alias
+  LambdaAliasBeta:
+    Type: String
+    Description: Environment alias
+  ApiGatewayResponseMessage400:
+    Type: String
+    Description: message error 400
+  ApiGatewayResponseMessage401:
+    Type: String
+    Description: message error 401
+  ApiGatewayResponseMessage403:
+    Type: String
+    Description: message error 403
+  ApiGatewayResponseMessage404:
+    Type: String
+    Description: message error 404
+  ApiGatewayResponseMessage405:
+    Type: String
+    Description: message error 405
+  ApiGatewayResponseMessage409:
+    Type: String
+    Description: message error 409
+  ApiGatewayResponseMessage429:
+    Type: String
+    Description: message error 429
+  ApiGatewayResponseMessage500:
+    Type: String
+    Description: message error 500
+  SecretArn:
+    Type: String
+    Description: "arn del secreto que contiene los datos de conexion."
+  SecurityGroupIds:
+    Type: String
+    Description: "Id de la VPC Endpoint que será asociada al API, esta solo se aplica si el API es de tipo privado."
+  SubnetIds:
+    Type: CommaDelimitedList
+    Description: "Identificador de las subnets donde se desplegará el API de desarrollo (Deben estar entre comillas dobles y separadas por comas)."
+  DbTarget:
+    Type: String
+    Description: "Instancia a la que se conectara el lambda master o replica"
+  AwsAccountIdToDeploy:
+    Type: String
+    Description: Identificador de la cuentas AWS donde se desplegará el API de desarrollo.
+  RegionToDeploy:
+    Type: String
+    AllowedValues: [us-east-2, us-west-2, us-east-1]
+    ConstraintDescription: must specify us-east-2,us-west-2, us-east-1.
+    Description: Región en la cual se realizará el despliegue del ambiente de desarrollo.
+  LogLevel:
+    Type: String
+    AllowedValues: [INFO, DEBUG, WARNING, TRACE]
+    ConstraintDescription: must specify INFO, DEBUG, WARNING or TRACE.
+    Description: "Nivel de escritura de logs en los lambda INFO,DEBUG,WARNING,TRACE"
+  LambdaAuthorizer:
+    Type: String
+    Description: "Nombre de la función lambda de tipo autorizador para el ambiente de desarrollo."
+  DBConnectionExpirationTime:
+    Type: Number
+    Description: "Tiempo de reconexión a la base de datos."
+  UserPoolId:
+    Type: String
+    Description: "Indica el user poolid para los token de autenticación."
+  DaysRetention:
+    Type: Number
+    Description: "Indica el user poolid para los token de autenticación."
+  StageName:
+    Type: String
+    Description: "Indica el nombre del stage del API Gateway."
+  StageMainVersionName:
+    Description: Nombre de la version principal de el stage del APIGateway
+    Type: String
+  # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+  ValueApiKey:
+    Type: String
+    MinLength: 20
+    Description: "Valor del apikey."
+  ChannelsCommonsRoleArn:
+    Type: String
+    Description: Arn del role Channels Commons.
+  ChannelsCommonsLayer:
+    Type: String
+    Description: Arn del layer Channels Commons.
+  ExtTimeDeposits:
+    Type: String
+    Description: "Endpoint al Executor de Time Deposits."
+  ExtTimeDepositsApiKey:
+    Type: String
+    Description: "Api Key del Api Generico Time Deposits."
+    Default: "noused"
+  ExtDemandDeposits:
+    Type: String
+    Description: "Endpoint al Executor de Demand Deposits."
+  ExtDemandDepositsApiKey:
+    Type: String
+    Description: "Api Key del Api Generico Demand Deposits."
+    Default: "noused"
+  ExtLoans:
+    Type: String
+    Description: "Endpoint al Executor de Loans."
+  ExtLoansApiKey:
+    Type: String
+    Description: "api key del api generico de Loans."
+  ExtFinancial:
+    Type: String
+    Description: "Endpoint al Executor de Financial."
+    Default: "url"
+  ExtFinancialApiKey:
+    Type: String
+    Description: "api key del api generico de Financial."
+    Default: "noused"
+  MainDomain:
+    Type: String
+    Description: "Dominios propios del Modulo."
+  ChannelsCommonsExecutorLambdaConfiguration:
+    Description: "ChannelsCommonsExecutorLambda"
+    Type: String
+    Default: "1024:0:0:0:0:0:INFO"
+  Organization:
+    Type: String
+    Description: "Identificador del dueño componente."
+  Package:
+    Type: String
+    Description: "Identificador del paquete de productos comerciales al que se asocia el componente."
+  Version:
+    Type: String
+    Default: "0.1"
+    Description: "Versión del módulo o aplicación a la que pertenece el componente."
+  EnvironmentId:
+    Type: String
+    Description: "Identificador del ambiente."
+  EnvironmentIdBaseFront:
+    Type: String
+    Description: "Identificador del ambiente."
+  EnvironmentIdBase:
+    Type: String
+    Description: "Prefijo de recursos de la infraestructura base para referenciar en el microservicio.Pueden ser [dev,stg,prod o otro personalizado]"
+  EnvironmentType:
+    Type: String
+    AllowedValues: [Production, Staging, Quality, Development, Integration, Formation, Migration]
+    ConstraintDescription: must specify PRODUCTION, STAGING, QUALITY or DEVELOPMENT.
+  TenantId:
+    Type: String
+    Description: "Identificador del tenant."
+  Project:
+    Type: String
+    Description: "Identificador del proyecto por el que se crea el componente."
+  Module:
+    Type: String
+    Description: "Identificador del módulo."
+  ProcessingType:
+    Type: String
+    Description: "Tipo de procesamiento."
+
+  AllowedDomains:
+    Type: String
+    Description: 'Indica el listado de dominios permitidos para activar la funcionalidad de CORs.'
+    Default: "*"
+  IntegrationTimeoutMessage:
+    Type: String
+    Description: message error 500
+    Default: 'Se ha excedido el tiempo de ejecución de la operación. Verificar la operación antes de reenviar.'
+  DBReading:
+    Type: String
+    Description: "String de conexión a la base de datos master en el ambiente de desarrollo."
+  MonitoringEventSource:
+    Type: String
+    Description: "Fuente de envento para el monitoreo."
+  MonitoringEventType:
+    Type: String
+    Description: "Tipo de evento de monitoreo."
+  SecretsManagerCacheExpirationTime:
+    Type: Number
+    Description: "Tiempo de expiracion del cache para la consulta de parametros en el System manager."
+  skipParameterStore:
+    Type: String
+    Description: "Indica se omite la consulta al parameter store."
+
+Globals:
+  Api:
+    GatewayResponses:
+      DEFAULT_4XX:
+        StatusCode: "400"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage400}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      BAD_REQUEST_PARAMETERS:
+        StatusCode: "400"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage400}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      BAD_REQUEST_BODY:
+        StatusCode: "400"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage400}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+
+      UNAUTHORIZED:
+        StatusCode: "401"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage401}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      ACCESS_DENIED:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      EXPIRED_TOKEN:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      INVALID_API_KEY:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      INVALID_SIGNATURE:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      MISSING_AUTHENTICATION_TOKEN:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      WAF_FILTERED:
+        StatusCode: "403"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage403}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      RESOURCE_NOT_FOUND:
+        StatusCode: "404"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage404}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      THROTTLED:
+        StatusCode: "429"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage429}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      API_CONFIGURATION_ERROR:
+        StatusCode: "500"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage500}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      AUTHORIZER_CONFIGURATION_ERROR:
+        StatusCode: "500"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage500}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      AUTHORIZER_FAILURE:
+        StatusCode: "500"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage500}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      INTEGRATION_TIMEOUT:
+        StatusCode: "500"
+        ResponseTemplates:
+          "application/json": !Sub '{
+            "message": "Se presentó un error durante el procesamiento de la solicitud.",
+            "errors": [
+                {
+                  "error": {
+                    "code": 30002,
+                    "message": "${IntegrationTimeoutMessage}"
+                  }
+                }
+              ]
+            }'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+      DEFAULT_5XX:
+        StatusCode: "500"
+        ResponseTemplates:
+          "application/json": !Sub '{"message": "${ApiGatewayResponseMessage500}"}'
+        ResponseParameters:
+          Headers:
+            Access-Control-Allow-Origin: "'*'"
+            Access-Control-Allow-Headers: "'*'"
+            x-correlation-id: "method.request.header.x-request-id"
+
+  Function:
+    CodeUri: ../cobis-channels-commons-online/target/cobis-channels-commons-serverless-service.jar
+    Runtime: java8.al2
+    Architectures:
+      - arm64
+    Tracing: Active
+    VpcConfig:
+      SecurityGroupIds: [!Ref SecurityGroupIds]
+      SubnetIds: !Ref SubnetIds
+    Environment:
+      Variables:
+        DB_TARGET: !Ref DbTarget
+        ENVIRONMENT_ID: !Ref EnvironmentId
+        EXT_MODULE_URL_TIME_DEPOSITS: !Ref ExtTimeDeposits
+        EXT_MODULE_API_KEY_TIME_DEPOSITS: !Ref ExtTimeDepositsApiKey
+        EXT_MODULE_URL_DEMAND_DEPOSITS: !Ref ExtDemandDeposits
+        EXT_MODULE_API_KEY_DEMAND_DEPOSITS: !Ref ExtDemandDepositsApiKey
+        EXT_MODULE_URL_LOANS: !Ref ExtLoans
+        EXT_MODULE_API_KEY_LOANS: !Ref ExtLoansApiKey
+        EXT_MODULE_URL_FINANCIAL: !Ref ExtFinancial
+        EXT_MODULE_API_KEY_FINANCIAL: !Ref ExtFinancialApiKey
+        LOG_LEVEL: !Ref LogLevel
+        MODULE: !Ref Module
+        Module: !Ref Module
+        MAIN_DOMAIN: !Ref MainDomain
+        SECRET_ARN: !Ref SecretArn
+        TENANT_ID: !Ref TenantId
+        DB_CONNECTION_EXPIRATION_TIME: !Ref DBConnectionExpirationTime
+        TZ: !Ref TimeZone
+
+        connection_url: !Ref DBReading
+        MONITORING_EVENT_SOURCE: !Ref MonitoringEventSource
+        MONITORING_EVENT_TYPE: !Ref MonitoringEventType
+        SECRETS_MANAGER_CACHE_EXPIRATION_TIME: !Ref SecretsManagerCacheExpirationTime
+        skip_parameter_store: !Ref skipParameterStore
+        flagServerParamsV2: "true"
+        JAVA_TOOL_OPTIONS: -XX:-TieredCompilation -XX:ReservedCodeCacheSize=64M -XX:InitialCodeCacheSize=64M
+    Tags:
+      ORGANIZATION: !Ref Organization
+      PACKAGE: !Ref Package
+      VERSION: !Ref Version
+      ENVIRONMENT_TYPE: !Ref EnvironmentType
+      ENVIRONMENT_ID: !Ref EnvironmentId
+      TENANT_ID: !Ref TenantId
+      PROJECT: !Ref Project
+      MODULE: !Ref Module
+      PROCESSING_TYPE: !Ref ProcessingType
+
+Resources:
+
+################### API #########################
+  ChannelsPaymentConsolidationApiGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: v1
+      TracingEnabled: true
+      Variables:
+        version_alias: !Ref LambdaAliasProduction
+      DefinitionBody:
+        'Fn::Transform':
+          Name: 'AWS::Include'
+          Parameters:
+            Location: ../specs/channels/v1/COBISChannelsAPI-resolved.yaml
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "GET"     
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+        - ResourcePath: "/*"
+          HttpMethod: "POST"      
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+        - ResourcePath: "/*"
+          HttpMethod: "PATCH"    
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+        - ResourcePath: "/*"
+          HttpMethod: "DELETE"     
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+
+      Tags:
+        ORGANIZATION: !Ref Organization
+        PACKAGE: !Ref Package
+        VERSION: !Ref Version
+        ENVIRONMENT_TYPE: !Ref EnvironmentType
+        ENVIRONMENT_ID: !Ref EnvironmentId
+        TENANT_ID: !Ref TenantId
+        PROJECT: !Ref Project
+        MODULE: !Ref Module
+        PROCESSING_TYPE: !Ref ProcessingType
+  
+  ChannelsPaymentConsolidationApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref ChannelsPaymentConsolidationApiGateway
+
+  ChannelsPaymentConsolidationApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "API-Gateway-Execution-Logs_${ChannelsPaymentConsolidationApiGateway}/${StageMainVersionName}"
+      RetentionInDays: !Ref DaysRetention
+
+  PaymentsUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ChannelsPaymentConsolidationApiGatewayDeployment
+      - ChannelsPaymentConsolidationApiGateway
+      - ChannelsPaymentConsolidationApiGatewayv1Stage
+    Properties:
+      Description: Plan de uso Large.
+      Throttle:
+        BurstLimit: 20
+        RateLimit: 1000
+      ApiStages:
+        - ApiId: !Ref ChannelsPaymentConsolidationApiGateway
+          Stage: v1
+      UsagePlanName: !Join
+        - ''
+        - - !Ref EnvironmentId
+          - '-payments-consolidator-usage-plan'
+
+  CobisPaymentsConsolitatorApiKey:
+    Type: "AWS::ApiGateway::ApiKey"
+    DependsOn: 
+      - PaymentsUsagePlan
+    Properties:
+      Enabled: true
+      Name: !Sub "${EnvironmentId}-cobis-pc-apikey-work"
+      Value: !Sub "${EnvironmentId}-${ValueApiKey}-payments-consolidator"
+
+  PaymentsConsolidatorUsagePlanKey:
+    Type: 'AWS::ApiGateway::UsagePlanKey'
+    DependsOn: 
+      - CobisPaymentsConsolitatorApiKey
+    Properties:
+      KeyId: !Ref CobisPaymentsConsolitatorApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref PaymentsUsagePlan
+
+
+################### PaymentConsolidatorPST #########################
+  PaymentConsolidatorPSTLambda:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: !Join
+        - ""
+        - - !Ref EnvironmentIdBaseFront
+          - "-PaymentConsolidatorPST"
+      Handler: com.cobis.cloud.channelscommons.aws.lambda.paymentconsolidator.PaymentConsolidatorPST::handleRequest
+      Role: !Sub "${ChannelsCommonsRoleArn}"
+      Timeout: 19
+      MemorySize: 2048
+      AutoPublishAlias: !Ref LambdaAliasBeta
+      Layers:
+        - !Ref "ChannelsCommonsLayer"
+      AutoPublishAlias: !Ref LambdaAliasProduction
+      Events:
+        PaymentConsolidatorPSTApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChannelsPaymentConsolidationApiGateway
+            Path: /channels/consolidating-payment
+            Method: POST
+      Tags:
+        ORGANIZATION: !Ref Organization
+        PACKAGE: !Ref Package
+        VERSION: !Ref Version
+        ENVIRONMENT_TYPE: !Ref EnvironmentType
+        ENVIRONMENT_ID: !Ref EnvironmentId
+        TENANT_ID: !Ref TenantId
+        PROJECT: !Ref Project
+        MODULE: !Ref Module
+        PROCESSING_TYPE: !Ref ProcessingType
+  
+  PaymentConsolidatorPSTLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PaymentConsolidatorPSTLambda}
+      RetentionInDays: !Ref DaysRetention
+
+  PaymentConsolidatorPSTProductionPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: 
+      - PaymentConsolidatorPSTLambda
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Join
+        - ""
+        - - !Ref PaymentConsolidatorPSTLambda
+          - ":"
+          - !Ref LambdaAliasProduction
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Join
+        - ""
+        - - "arn:aws:execute-api:"
+          - !Ref RegionToDeploy
+          - ":"
+          - !Ref AwsAccountIdToDeploy
+          - ":"
+          - !Ref ChannelsPaymentConsolidationApiGateway
+          - "*/*/*"
+        
+################### PaymentConsolidatorGETLambda #########################
+
+  PaymentConsolidatorGETLambda:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: !Join
+        - ""
+        - - !Ref EnvironmentIdBaseFront
+          - "-PaymentConsolidatorGETAll"
+      Handler: com.cobis.cloud.channelscommons.aws.lambda.paymentconsolidator.PaymentConsolidatorGETAll::handleRequest
+      Role: !Sub "${ChannelsCommonsRoleArn}"
+      Timeout: 19
+      MemorySize: 2048
+      AutoPublishAlias: !Ref LambdaAliasBeta
+      Layers:
+        - !Ref "ChannelsCommonsLayer"
+      AutoPublishAlias: !Ref LambdaAliasProduction
+      Events:
+        PaymentConsolidatorGETApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ChannelsPaymentConsolidationApiGateway
+            Path: /channels/consolidating-payment
+            Method: GET
+      Tags:
+        ORGANIZATION: !Ref Organization
+        PACKAGE: !Ref Package
+        VERSION: !Ref Version
+        ENVIRONMENT_TYPE: !Ref EnvironmentType
+        ENVIRONMENT_ID: !Ref EnvironmentId
+        TENANT_ID: !Ref TenantId
+        PROJECT: !Ref Project
+        MODULE: !Ref Module
+        PROCESSING_TYPE: !Ref ProcessingType
+
+  PaymentConsolidatorGETLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${PaymentConsolidatorGETLambda}
+      RetentionInDays: !Ref DaysRetention
+
+  PaymentConsolidatorGETProductionPermission:
+    Type: AWS::Lambda::Permission
+    DependsOn: 
+      - PaymentConsolidatorGETLambda
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !Join
+        - ""
+        - - !Ref PaymentConsolidatorGETLambda
+          - ":"
+          - !Ref LambdaAliasProduction
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Join
+        - ""
+        - - "arn:aws:execute-api:"
+          - !Ref RegionToDeploy
+          - ":"
+          - !Ref AwsAccountIdToDeploy
+          - ":"
+          - !Ref ChannelsPaymentConsolidationApiGateway
+          - "*/*/*"
+
+Outputs:
+
+  ApiId:
+    Description: "Identificador del API Gateway."
+    Value: !Ref ChannelsPaymentConsolidationApiGateway
+
+  PaymentConsolidatorPSTLambda:
+    Description: "PaymentConsolidatorPST Lambda Function ARN"
+    Value: !GetAtt PaymentConsolidatorPSTLambda.Arn
+
+  PaymentConsolidatorGETLambda:
+    Description: "PaymentConsolidatorGET Lambda Function ARN"
+    Value: !GetAtt PaymentConsolidatorGETLambda.Arn
