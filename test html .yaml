@@ -423,11 +423,27 @@ Resources:
           Parameters:
             Location: ../specs/channels/v1/COBISChannelsAPI-resolved.yaml
       MethodSettings:
-        - ResourcePath: "/*"
-          HttpMethod: "*"      
+        - ResourcePath: "/atm/channels"
+          HttpMethod: "GET"     
           MetricsEnabled: "true"
           DataTraceEnabled: "false"
           LoggingLevel: INFO
+        - ResourcePath: "/atm/channels"
+          HttpMethod: "POST"      
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+        - ResourcePath: "/atm/channels/{id}"
+          HttpMethod: "PATCH"    
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+        - ResourcePath: "/atm/channels/{id}"
+          HttpMethod: "DELETE"     
+          MetricsEnabled: "true"
+          DataTraceEnabled: "false"
+          LoggingLevel: INFO
+
       Tags:
         ORGANIZATION: !Ref Organization
         PACKAGE: !Ref Package
@@ -468,7 +484,6 @@ Resources:
         - ''
         - - !Ref EnvironmentId
           - '-payments-consolidator-usage-plan'
-
   CobisPaymentsConsolitatorApiKey:
     Type: "AWS::ApiGateway::ApiKey"
     DependsOn: 
