@@ -1,0 +1,212 @@
+variables:
+# variable de grupos de fluid
+- group: Fluid
+- group: Artifactory
+# Propiedad del sonarQube para indicar el directorio a analizar
+- name: sonarSources
+  value: 'src/main/java/com/cobiscorp/businesslogic/ach/'
+- name: sonarSourcesSql
+  value: '$(System.DefaultWorkingDirectory)/spsql/SWITCH-ACH/,$(System.DefaultWorkingDirectory)/spsql//ISO/'
+# propiedad de sonarQube para indicar los directorios a excluir en el análisis
+- name: sonarExclusions
+  value : '.'
+- name: sonarExclusionsSql
+  value : ''
+# propiedad de sonarQube para indicar el directorio donde se encontrara el reporte de cobertura
+- name: sonarCoveragePaths
+  value: 'CCReport43F6D5EF/jacoco.xml'
+# 1=proyecto nuevo en sonarQube y 0=para actualizar una rama nueva del proyecto existente en sonarQube
+- name: sonarCreateMaster
+  value: '1'
+# Nombre del service connection para tarea de sonarQube
+- name: sonarQubeServiceEndpoint
+  value: 'SonarLts'
+# Nombre del service connection de sonarQube para tarea de gradle o maven
+- name: sonarQubeServiceEndpointGeneric
+  value: 'Sonar-Generic-Lts'
+# Nombre del proyecto en SonarQube
+- name: sonarProjectName  
+  value: '$(Build.Repository.Name)' 
+- name: testResultsFiles
+  value: '**/TEST-*.xml'
+# id de proyecto en fluid asserts
+- name: idfluid
+  value: $(??)
+# secretKey de proyecto en fluid asserts
+- name: secretfluid
+  value: $(tokenFruitville)
+- name: jdk_versionCobisLan
+  value: '1.11'
+- name: jdk_version
+  value: 'default'
+- name: JAVA_PROJECT_PATH
+  value: 'test/cobis-ach-backend-aws'
+- name: COBIS_LANGUAGE_VERSION
+  value: '3.2.6'
+- name: BACKEND_PATHS_FILENAME
+  value: 'config/BackendPaths.txt'
+- name: COBIS_LANGUAGE_OPTIONS
+  value: ''
+- name: awsServConnResources
+  value: 'bank-2016_banistmo_desarrollo_core-dev-aws'
+- name: folderDestCobisLan
+  value: 'clanguage'
+- name: bucketResources
+  value: 'aws-useast1-dev1-audit-507781971948'
+- name: mavenPomFilePath
+  value: 'test/cobis-ach-backend-aws'
+
+
+resources:
+  repositories:
+    - repository: template
+      type: git
+      name: DevOps/_git/templates-yaml
+      ref: 'refs/heads/feature/cobisTemplateSteps' # indicamos la rama que apuntamos en el repositorios template-yaml, siempre debemos apuntar a master
+trigger:
+- master
+- develop
+- develop/*
+- release
+- release/*
+
+name: $(date:yyyyMMdd)$(rev:.r)
+stages:
+- stage: develop
+  variables:
+  - group: integracion
+  - group: Artifactory
+  - name: taskCommand_dev
+    value: 'clean package'
+  - name: buildOptions_dev
+    value: '--global-settings $(System.DefaultWorkingDirectory)/settings.xml -Dsurefire.useSystemClassLoader=false -Pprofid -X -Duser.timezone=UTC' 
+  condition: |
+      or(
+            startsWith(variables['build.sourceBranch'], 'refs/heads/feature'),
+            startsWith(variables['build.sourceBranch'], 'refs/heads/develop'),
+            in(variables['System.PullRequest.TargetBranch'], 'refs/heads/develop')
+          )
+  jobs:
+  - template: prueba_fluid_sast.yml@template 
+    parameters: 
+      secretfluid: ${{variables.secretfluid}}
+  - job: CI
+    dependsOn: Pruebas_Sast
+    condition: succeeded()
+    pool: 
+      name: Docker-Agent-cobis
+    workspace:
+      clean: all
+    steps:
+    - script: |
+          docker login -u=transformacion-viewer -p=Tr4n5f0rm4c10n-V13uw3r banistmorepo-devops.jfrog.io
+          docker pull banistmorepo-devops.jfrog.io/build/cobis/mysql:latest      
+      displayName: Pull mysql image
+    - template: build_cobis_template_mod2_v1.yml@template #ref de template en otro repository
+      parameters:
+        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+        sonarExclusions: ${{variables.sonarExclusions}}
+        sonarSources: ${{variables.sonarSources}}
+        sonarExclusionsSql: ${{variables.sonarExclusionsSql}}
+        sonarSourcesSql: ${{variables.sonarSourcesSql}}
+        sonarCreateMaster: ${{variables.sonarCreateMaster}}
+        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+        sonarQubeServiceEndpointGeneric: ${{variables.sonarQubeServiceEndpointGeneric}}
+        sonarProjectName: ${{variables.sonarProjectName}}       
+        buildOptions: ${{variables.buildOptions_dev}}
+        taskCommand: ${{variables.taskCommand_dev}}
+        testResultsFiles: ${{variables.testResultsFiles}}
+        jdk_version: ${{variables.jdk_version}}
+        JAVA_PROJECT_PATH: ${{variables.JAVA_PROJECT_PATH}}
+        COBIS_LANGUAGE_VERSION: ${{variables.COBIS_LANGUAGE_VERSION}}
+        BACKEND_PATHS_FILENAME: ${{variables.BACKEND_PATHS_FILENAME}}
+        COBIS_LANGUAGE_OPTIONS: ${{variables.COBIS_LANGUAGE_OPTIONS}}
+        awsServConnResources: ${{variables.awsServConnResources}}
+        folderDestCobisLan: ${{variables.folderDestCobisLan}}
+        bucketResources: ${{variables.bucketResources}}
+        jdk_versionCobisLan: ${{variables.jdk_versionCobisLan}}
+        mavenPomFilePath: ${{variables.mavenPomFilePath}}
+
+
+#- stage: release
+#  variables:
+#  - group: calidad
+#  - group: Artifactory
+#  - name: taskCommand_qa
+#    value: 'clean package'
+#  - name: buildOptions_qa
+#    value: '--global-settings $(System.DefaultWorkingDirectory)/settings.xml -Dsurefire.useSystemClassLoader=false -Pprofid -DrepoVirtual=gradle-qa-virtual'
+#  - name: maven_publish_qa
+#    value: $(maven.saas.publish.qa)
+#  condition: |
+#      or(
+#          startsWith(variables['build.sourceBranch'], 'refs/heads/bugfix'),
+#          startsWith(variables['build.sourceBranch'], 'refs/heads/release'),
+#          in(variables['System.PullRequest.TargetBranch'], 'refs/heads/release'),
+#          startsWith(variables['Build.SourceBranchName'], 'release')
+#
+#        )
+#  jobs:
+  #- template: prueba_fluid_sast.yml@template 
+  #  parameters: 
+  #    idfluid: ${{variables.idfluid}}
+  #    secretfluid: ${{variables.secretfluid}}
+#  - job: CI
+#    pool: 
+#      name: Docker-Agents
+#    workspace:
+#      clean: all
+#    steps:
+#          
+#    - template: build_MAVEN_v1.yml@template #ref de template en otro repository
+#      parameters:
+#        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+#        sonarExclusions: ${{variables.sonarExclusions}}
+#        sonarSources: ${{variables.sonarSources}}
+#        sonarCreateMaster: ${{variables.sonarCreateMaster}}
+#        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+#        sonarQubeServiceEndpointGeneric: ${{variables.sonarQubeServiceEndpointGeneric}}
+#        sonarProjectName: ${{variables.sonarProjectName}}       
+#        buildOptions: ${{variables.buildOptions_qa}}
+#        taskCommand: ${{variables.taskCommand_qa}}
+#        testResultsFiles: ${{variables.testResultsFiles}}
+#        jdk_version: ${{variables.jdk_version}}
+
+#- stage: master
+#  variables:
+#  - group: produccion
+#  - group: Artifactory-produccion
+#  - name: taskCommand_prod
+#    value: 'clean package '
+#  - name: buildOptions_prod
+#    value: '--global-settings $(System.DefaultWorkingDirectory)/settings.xml -Dsurefire.useSystemClassLoader=false -Pprofid -DrepoVirtual=gradle-prod-virtual'
+#  condition: |
+#     or(
+#          startsWith(variables['build.sourceBranch'], 'refs/heads/hotfix'),
+#          eq(variables['build.sourceBranch'], 'refs/heads/master'),
+#          in(variables['System.PullRequest.TargetBranch'], 'refs/heads/master')
+#        )
+#  jobs:
+  #- template: prueba_fluid_sast.yml@template 
+  #  parameters: 
+  #    idfluid: ${{variables.idfluid}}
+  #    secretfluid: ${{variables.secretfluid}}
+#  - job: CI
+#    pool: 
+#      name: Docker-Agents
+#    workspace:
+#      clean: all
+#    steps:
+#    - template: build_MAVEN_v1.yml@template #ref de template en otro repository
+#      parameters:
+#        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+#        sonarExclusions: ${{variables.sonarExclusions}}
+#        sonarSources: ${{variables.sonarSources}}
+#        sonarCreateMaster: ${{variables.sonarCreateMaster}}
+#        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+#        sonarQubeServiceEndpointGeneric: ${{variables.sonarQubeServiceEndpointGeneric}}   
+#        sonarProjectName: ${{variables.sonarProjectName}}      
+#        buildOptions: ${{variables.buildOptions_prod}}
+#        taskCommand: ${{variables.taskCommand_prod}}
+#        testResultsFiles: ${{variables.testResultsFiles}}
+#        jdk_version: ${{variables.jdk_version}}
